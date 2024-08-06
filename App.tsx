@@ -27,14 +27,14 @@ export default function App() {
   return (
     <AppProvider id={REALM_APP_ID}>
       <ThemeProvider theme={theme}>
-        <SafeAreaProvider>
+        <SafeAreaProvider style={{backgroundColor: theme.COLORS.GRAY_800}}>
           <StatusBar
             barStyle="light-content"
             backgroundColor="transparent"
             translucent
           />
           <UserProvider fallback={SignIn}>
-              <RealmProvider>
+            <RealmProvider>
               <Routes />
             </RealmProvider>
           </UserProvider>
