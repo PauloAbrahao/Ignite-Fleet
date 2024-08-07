@@ -1,5 +1,10 @@
-import { ThemeProvider } from 'styled-components/native';
-import { useFonts, Roboto_400Regular, Roboto_700Bold } from '@expo-google-fonts/roboto';
+import "react-native-get-random-values";
+import {ThemeProvider} from "styled-components/native";
+import {
+  useFonts,
+  Roboto_400Regular,
+  Roboto_700Bold,
+} from "@expo-google-fonts/roboto";
 import {SafeAreaProvider} from "react-native-safe-area-context";
 
 import {AppProvider, UserProvider} from "@realm/react";
@@ -43,5 +48,3 @@ export default function App() {
     </AppProvider>
   );
 }
-
-
