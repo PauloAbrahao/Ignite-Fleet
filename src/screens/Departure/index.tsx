@@ -1,23 +1,18 @@
 import {useRef, useState} from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  TextInput,
-} from "react-native";
+import {Alert, Platform, ScrollView, TextInput} from "react-native";
 
 import {Button} from "../../components/Button";
 import {Header} from "../../components/Header";
 import {LicensePlateInput} from "../../components/LicensePlateInput";
-import { TextAreaInput } from "../../components/TextAreaInput";
-import { Historic } from '../../libs/realm/schemas/Historic';
+import {TextAreaInput} from "../../components/TextAreaInput";
+import {Historic} from "../../libs/realm/schemas/Historic";
+import {KeyboardAwareScrollView} from "react-native-keyboard-aware-scroll-view";
 
 import {Container, Content} from "./styles";
 import {licensePlateValidate} from "../../utils/licensePlateValidate";
-import { useRealm } from '../../libs/realm';
-import { useUser } from '@realm/react';
-import { useNavigation } from "@react-navigation/native";
+import {useRealm} from "../../libs/realm";
+import {useUser} from "@realm/react";
+import {useNavigation} from "@react-navigation/native";
 
 export function Departure() {
   const descriptionRef = useRef<TextInput>(null);
@@ -29,10 +24,7 @@ export function Departure() {
 
   const realm = useRealm();
   const user = useUser();
-  const { goBack } = useNavigation();
-
-  const keyboardAvoidingViewBehavior =
-    Platform.OS === "android" ? "height" : "position";
+  const {goBack} = useNavigation();
 
   function handleDepartureRegister() {
     try {
@@ -79,10 +71,7 @@ export function Departure() {
     <Container>
       <Header title="Saída" />
 
-      <KeyboardAvoidingView
-        style={{flex: 1}}
-        behavior={keyboardAvoidingViewBehavior}
-      >
+      <KeyboardAwareScrollView extraHeight={100}>
         <ScrollView>
           <Content>
             <LicensePlateInput
@@ -113,7 +102,7 @@ export function Departure() {
             />
           </Content>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </Container>
   );
 }
