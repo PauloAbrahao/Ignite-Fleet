@@ -1,24 +1,29 @@
-import {Container, Content, Label, Title} from "./styles";
+import {useEffect, useState} from "react";
+import {Alert, FlatList} from "react-native";
+import {useNavigation} from "@react-navigation/native";
+import dayjs from "dayjs";
+
+import {useUser} from "@realm/react";
+import {useQuery, useRealm} from "../../libs/realm";
+import {Historic} from "../../libs/realm/schemas/Historic";
 
 import {HomeHeader} from "../../components/HomeHeader";
 import {CarStatus} from "../../components/CarStatus";
-import {useNavigation} from "@react-navigation/native";
 
-import {useQuery, useRealm} from "../../libs/realm";
-import {Historic} from "../../libs/realm/schemas/Historic";
-import {useEffect, useState} from "react";
-import {Alert, FlatList} from "react-native";
+import {Container, Content, Label, Title} from "./styles";
 import {HistoricCard, HistoricCardProps} from "../../components/HistoricCard";
-import dayjs from "dayjs";
+import {ProgressDirection, ProgressMode} from "realm";
 
 export function Home() {
   const [vehicleInUse, setVehicleInUse] = useState<Historic | null>(null);
   const [vehicleHistoric, setVehicleHistoric] = useState<HistoricCardProps[]>(
     []
   );
+
   const {navigate} = useNavigation();
 
   const historic = useQuery(Historic);
+  const user = useUser();
   const realm = useRealm();
 
   function handleRegisterMoviment() {
@@ -68,9 +73,17 @@ export function Home() {
     navigate("arrival", {id});
   }
 
-  useEffect(() => {
-    fetchHistoric();
-  }, [historic]);
+  function progressNotification(transferred: bigint, transferable: bigint) {
+    
+    // Convert BigInt to Number
+    const transferredNumber = Number(transferred);
+    const transferableNumber = Number(transferable);
+    
+    // Calculate percentage
+    const percentage = (transferredNumber / transferableNumber) * 100;
+  
+    console.log("TRANSFERIDO => ", `${percentage}%`);
+  }
 
   useEffect(() => {
     fetchVehicleInUse();
@@ -85,6 +98,38 @@ export function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    fetchHistoric();
+  }, [historic]);
+
+  useEffect(() => {
+    realm.subscriptions.update((mutableSubs, realm) => {
+      const historicByUserQuery = realm
+        .objects("Historic")
+        .filtered(`user_id = '${user!.id}'`);
+
+      mutableSubs.add(historicByUserQuery, {name: "hostoric_by_user"});
+    });
+  }, [realm]);
+
+  useEffect(() => {
+    const syncSession = realm.syncSession;
+
+    if (!syncSession) {
+      return;
+    }
+
+    syncSession.addProgressNotification(
+      ProgressDirection.Upload,
+      ProgressMode.ReportIndefinitely,
+      progressNotification
+    );
+
+    return () => {
+      syncSession.removeProgressNotification(progressNotification);
+    };
+  }, []);
+
   return (
     <Container>
       <HomeHeader />
@@ -94,6 +139,7 @@ export function Home() {
           licensePlate={vehicleInUse?.license_plate}
           onPress={handleRegisterMoviment}
         />
+
         <Title>Histórico</Title>
 
         <FlatList
