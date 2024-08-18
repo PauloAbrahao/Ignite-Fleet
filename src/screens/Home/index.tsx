@@ -2,23 +2,32 @@ import {useEffect, useState} from "react";
 import {Alert, FlatList} from "react-native";
 import {useNavigation} from "@react-navigation/native";
 import dayjs from "dayjs";
+import {CloudArrowUp} from "phosphor-react-native";
+
+import Realm from "realm";
 
 import {useUser} from "@realm/react";
 import {useQuery, useRealm} from "../../libs/realm";
 import {Historic} from "../../libs/realm/schemas/Historic";
+import {
+  getLastAsyncTimestamp,
+  saveLastSyncTimestamp,
+} from "../../libs/asyncStorage/syncStorage";
 
 import {HomeHeader} from "../../components/HomeHeader";
 import {CarStatus} from "../../components/CarStatus";
+import {HistoricCard, HistoricCardProps} from "../../components/HistoricCard";
 
 import {Container, Content, Label, Title} from "./styles";
-import {HistoricCard, HistoricCardProps} from "../../components/HistoricCard";
-import {ProgressDirection, ProgressMode} from "realm";
+import Toast from "react-native-toast-message";
+import {TopMessage} from "../../components/TopMessage";
 
 export function Home() {
   const [vehicleInUse, setVehicleInUse] = useState<Historic | null>(null);
   const [vehicleHistoric, setVehicleHistoric] = useState<HistoricCardProps[]>(
     []
   );
+  const [percetageToSync, setPercentageToSync] = useState<string | null>(null);
 
   const {navigate} = useNavigation();
 
@@ -43,20 +52,22 @@ export function Home() {
         "Veículo em uso",
         "Não foi possível carregar o veículo em uso."
       );
-      console.log(error);
     }
   }
 
-  function fetchHistoric() {
+  async function fetchHistoric() {
     try {
       const response = historic.filtered(
         "status='arrival' SORT(created_at DESC)"
       );
+
+      const lastSync = await getLastAsyncTimestamp();
+
       const formattedHistoric = response.map((item) => {
         return {
           id: item._id.toString(),
           licensePlate: item.license_plate,
-          isSync: false,
+          isSync: lastSync > item.updated_at!.getTime(),
           created: dayjs(item.created_at).format(
             "[Saída em] DD/MM/YYYY [às] HH:mm"
           ),
@@ -64,7 +75,6 @@ export function Home() {
       });
       setVehicleHistoric(formattedHistoric);
     } catch (error) {
-      console.log(error);
       Alert.alert("Histórico", "Não foi possível carregar o histórico.");
     }
   }
@@ -73,16 +83,25 @@ export function Home() {
     navigate("arrival", {id});
   }
 
-  function progressNotification(transferred: bigint, transferable: bigint) {
-    
-    // Convert BigInt to Number
-    const transferredNumber = Number(transferred);
-    const transferableNumber = Number(transferable);
-    
-    // Calculate percentage
-    const percentage = (transferredNumber / transferableNumber) * 100;
-  
-    console.log("TRANSFERIDO => ", `${percentage}%`);
+  async function progressNotification(
+    transferred: number,
+    transferable: number
+  ) {
+    const percentage = (Number(transferred) / Number(transferable)) * 100;
+
+    if (percentage === 100) {
+      await saveLastSyncTimestamp();
+      await fetchHistoric();
+      setPercentageToSync(null);
+      Toast.show({
+        type: "info",
+        text1: "Todos os dados estão sincronizados.",
+      });
+    }
+
+    if (percentage < 100) {
+      setPercentageToSync(`${percentage.toFixed(0)}% sincronizado.`);
+    }
   }
 
   useEffect(() => {
@@ -108,7 +127,7 @@ export function Home() {
         .objects("Historic")
         .filtered(`user_id = '${user!.id}'`);
 
-      mutableSubs.add(historicByUserQuery, {name: "hostoric_by_user"});
+      mutableSubs.add(historicByUserQuery, {name: "historic_by_user"});
     });
   }, [realm]);
 
@@ -120,8 +139,8 @@ export function Home() {
     }
 
     syncSession.addProgressNotification(
-      ProgressDirection.Upload,
-      ProgressMode.ReportIndefinitely,
+      Realm.ProgressDirection.Upload,
+      Realm.ProgressMode.ReportIndefinitely,
       progressNotification
     );
 
@@ -132,6 +151,9 @@ export function Home() {
 
   return (
     <Container>
+      {percetageToSync && (
+        <TopMessage title={percetageToSync} icon={CloudArrowUp} />
+      )}
       <HomeHeader />
 
       <Content>
