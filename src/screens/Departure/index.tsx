@@ -10,7 +10,7 @@ import {KeyboardAwareScrollView} from "react-native-keyboard-aware-scroll-view";
 import {Loading} from "../../components/Loading";
 import {LocationInfo} from "../../components/LocationInfo";
 import {CarSimple} from "phosphor-react-native";
-
+import { startLocationTask } from '../../tasks/backgroundLocationTask';
 import {Container, Content, Message} from "./styles";
 import {licensePlateValidate} from "../../utils/licensePlateValidate";
 import {useRealm} from "../../libs/realm";
@@ -19,6 +19,7 @@ import {useNavigation} from "@react-navigation/native";
 import {Map} from "../../components/Map";
 import {
   useForegroundPermissions,
+  requestBackgroundPermissionsAsync,
   watchPositionAsync,
   LocationAccuracy,
   LocationSubscription,
@@ -44,7 +45,7 @@ export function Departure() {
   const user = useUser();
   const {goBack} = useNavigation();
 
-  function handleDepartureRegister() {
+  async function handleDepartureRegister() {
     try {
       if (!licensePlateValidate(licensePlate)) {
         licensePlateRef.current?.focus();
@@ -62,7 +63,20 @@ export function Departure() {
         );
       }
 
+      if(!currentCoords?.latitude && !currentCoords?.longitude) {
+        return Alert.alert('Localização', 'Não foi possível obter a localização atual. Tente novamente.')
+      }
+
       setIsRegistering(false);
+
+      const backgroundPermissions = await requestBackgroundPermissionsAsync()
+
+      if(!backgroundPermissions.granted) {
+        setIsRegistering(false)
+        return Alert.alert('Localização', 'É necessário permitir que o App tenha acesso localização em segundo plano. Acesse as configurações do dispositivo e habilite "Permitir o tempo todo."')
+      }
+
+      await startLocationTask();
 
       realm.write(() => {
         realm.create(
