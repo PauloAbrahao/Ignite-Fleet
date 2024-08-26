@@ -16,7 +16,9 @@ type Props = TouchableOpacityProps & {
 };
 
 export function HistoricCard({data, ...rest}: Props) {
-  const {COLORS} = useTheme();
+  const { COLORS } = useTheme();
+  
+  console.log('data', data);
 
   return (
     <Container activeOpacity={0.7} {...rest}>

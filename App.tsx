@@ -48,7 +48,18 @@ export default function App() {
             translucent
           />
           <UserProvider fallback={SignIn}>
-            <RealmProvider sync={syncConfig} fallback={Loading}>
+            <RealmProvider
+                sync={{
+                  ...syncConfig,
+                  initialSubscriptions: {
+                    update(subs, realm) {
+                      subs.add(realm.objects("Historic"));
+                    },
+                    rerunOnOpen: true,
+                  },
+                }}
+                fallback={Loading}
+              >
               <Routes />
             </RealmProvider>
           </UserProvider>

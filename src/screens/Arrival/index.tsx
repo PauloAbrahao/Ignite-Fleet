@@ -9,6 +9,8 @@ import {
 } from "./styles";
 import {Alert} from "react-native";
 import {useNavigation, useRoute} from "@react-navigation/native";
+import { LatLng } from "react-native-maps";
+import dayjs from 'dayjs';
 
 import {Header} from "../../components/Header";
 import {Button} from "../../components/Button";
@@ -19,7 +21,13 @@ import {Historic} from "../../libs/realm/schemas/Historic";
 import {BSON} from "realm";
 import {useEffect, useState} from "react";
 import {getLastAsyncTimestamp} from "../../libs/asyncStorage/syncStorage";
-import { stopLocationTask } from "../../tasks/backgroundLocationTask";
+import {getStorageLocations} from "../../libs/asyncStorage/localStorage";
+import {stopLocationTask} from "../../tasks/backgroundLocationTask";
+import {Map} from "../../components/Map";
+import { Locations } from "../../components/Locations";
+import { getAddressLocation } from '../../utils/getAddressLocation';
+import { LocationInfoProps } from '../../components/LocationInfo';
+import { Loading } from '../../components/Loading';
 
 type RouteParamProps = {
   id: string;
@@ -31,6 +39,10 @@ export function Arrival() {
   const {goBack} = useNavigation();
   const {id} = route.params as RouteParamProps;
   const [dataNotSynced, setDataNotSynced] = useState(false);
+  const [coordinates, setCoordinates] = useState<LatLng[]>([]);
+  const [departure, setDeparture] = useState<LocationInfoProps>({} as LocationInfoProps);
+  const [arrival, setArrival] = useState<LocationInfoProps | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const historic = useObject(Historic, new BSON.UUID(id) as unknown as string);
 
@@ -43,10 +55,12 @@ export function Arrival() {
     ]);
   }
 
-  function removeVehicleUsage() {
+  async function removeVehicleUsage() {
     realm.write(() => {
       realm.delete(historic);
     });
+
+    await stopLocationTask();
 
     goBack();
   }
@@ -60,12 +74,15 @@ export function Arrival() {
         );
       }
 
-      await stopLocationTask()
+      const locations = await getStorageLocations();
 
       realm.write(() => {
         historic.status = "arrival";
         historic.updated_at = new Date();
+        historic.coords.push(...locations);
       });
+
+      await stopLocationTask();
 
       Alert.alert("Chegada", "Chegada registrada com sucesso.");
       goBack();
@@ -74,16 +91,67 @@ export function Arrival() {
     }
   }
 
+  async function getLocationsInfo() {
+    if (!historic) {
+      return;
+    }
+
+    const lastSync = await getLastAsyncTimestamp();
+    const updatedAt = historic!.updated_at.getTime();
+    setDataNotSynced(updatedAt > lastSync);
+
+    if (historic?.status === "departure") {
+      const locationsStorage = await getStorageLocations();
+      setCoordinates(locationsStorage);
+    } else {
+      const coords = historic?.coords.map((coord) => {
+        return {
+          latitude: coord.latitude,
+          longitude: coord.longitude
+        }
+      })
+      setCoordinates(coords ?? []);
+    }
+
+    if(historic?.coords[0]) {
+      const departureStreetName = await getAddressLocation(historic?.coords[0])
+
+      setDeparture({
+        label: `Saíndo em ${departureStreetName ?? ''}`,
+        description: dayjs(new Date(historic?.coords[0].timestamp)).format('DD/MM/YYYY [às] HH:mm')
+      })
+    }
+
+    if(historic?.status === 'arrival') {
+      const lastLocation = historic.coords[historic.coords.length - 1];
+      const arrivalStreetName = await getAddressLocation(lastLocation)
+
+      setArrival({
+        label: `Chegando em ${arrivalStreetName ?? ''}`,
+        description: dayjs(new Date(lastLocation.timestamp)).format('DD/MM/YYYY [às] HH:mm')
+      })
+    }
+    setIsLoading(false);
+  }
+
   useEffect(() => {
-    getLastAsyncTimestamp().then((lastSync) =>
-      setDataNotSynced(historic!.updated_at.getTime() > lastSync)
-    );
-  }, []);
+    getLocationsInfo();
+  }, [historic]);
+
+  if(isLoading) {
+    return <Loading />
+  }
 
   return (
     <Container>
       <Header title={title} />
+
+      {coordinates.length > 0 && <Map coordinates={coordinates} />}
       <Content>
+        <Locations 
+          departure={departure}
+          arrival={arrival}
+        />
         <Label>Placa do veículo</Label>
 
         <LicensePlate>{historic?.license_plate}</LicensePlate>
